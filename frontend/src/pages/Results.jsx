@@ -60,7 +60,7 @@ const Results = () => {
       </div>
     );
   }
-
+  
   const { prediction, images, disclaimer } = currentResult;
   const isNormal = prediction.label === "Normal";
   const isPneumonia = prediction.label.includes("Pneumonia");
@@ -164,7 +164,9 @@ const Results = () => {
                     Pneumonia Detected - Proceed to Classification?
                   </h3>
                   <p className="text-sm text-blue-800 mb-4">
-                    Stage-1 has detected pneumonia in the X-ray. Would you like to proceed with Stage-2 classification to determine if it's Viral or Bacterial pneumonia?
+                    Stage-1 has detected pneumonia in the X-ray. Would you like
+                    to proceed with Stage-2 classification to determine if it's
+                    Viral or Bacterial pneumonia?
                   </p>
                   {stage2Error && (
                     <div className="mb-4 text-sm text-red-600 flex items-center">

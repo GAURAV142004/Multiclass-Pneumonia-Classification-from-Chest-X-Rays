@@ -29,13 +29,15 @@ class Settings(BaseSettings):
     MONGODB_URL: str = "mongodb://localhost:27017"
     MONGODB_DB_NAME: str = "pneumonia_detection"
     
-    # CORS
-    ALLOWED_ORIGINS: list = [
-        "http://localhost:3000",
-        "http://localhost:5173",
-        "http://127.0.0.1:3000",
-        "http://127.0.0.1:5173"
-    ]
+    # CORS - Can be comma-separated string from env or list
+    ALLOWED_ORIGINS: str = "http://localhost:3000,http://localhost:5173,http://127.0.0.1:3000,http://127.0.0.1:5173"
+    
+    @property
+    def get_allowed_origins(self) -> list:
+        """Convert ALLOWED_ORIGINS string to list"""
+        if isinstance(self.ALLOWED_ORIGINS, str):
+            return [origin.strip() for origin in self.ALLOWED_ORIGINS.split(",")]
+        return self.ALLOWED_ORIGINS
     
     # Model Paths (relative to backend root)
     BASE_DIR: str = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))

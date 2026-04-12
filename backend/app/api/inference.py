@@ -94,6 +94,26 @@ async def predict_pneumonia(
         # Resize segmented lung to 224x224 for classification
         segmented_lung_224 = cv2.resize(segmented_lung_256[:, :, 0], (224, 224), interpolation=cv2.INTER_AREA)
         segmented_lung_224 = np.expand_dims(segmented_lung_224, axis=-1)
+
+        # Build Stage-2 segmented input using training-aligned pipeline.
+        # This mirrors the notebook that generated segmented_extended_dataset:
+        # threshold -> close/open (7x7, iterations 2/1) -> resize mask back to original
+        # -> bitwise_and on original grayscale -> resize to 224 -> normalize [0,1].
+        original_gray = cv2.cvtColor(original_image_rgb, cv2.COLOR_RGB2GRAY)
+        stage2_mask = (segmentation_mask[:, :, 0] > 0.5).astype(np.uint8) * 255
+        stage2_kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (7, 7))
+        stage2_mask = cv2.morphologyEx(stage2_mask, cv2.MORPH_CLOSE, stage2_kernel, iterations=2)
+        stage2_mask = cv2.morphologyEx(stage2_mask, cv2.MORPH_OPEN, stage2_kernel, iterations=1)
+        stage2_mask = cv2.resize(
+            stage2_mask,
+            (original_gray.shape[1], original_gray.shape[0]),
+            interpolation=cv2.INTER_LINEAR
+        )
+        segmented_fullres_for_stage2 = cv2.bitwise_and(original_gray, original_gray, mask=stage2_mask)
+        segmented_stage2_224 = cv2.resize(
+            segmented_fullres_for_stage2, (224, 224), interpolation=cv2.INTER_AREA
+        ).astype(np.float32) / 255.0
+        segmented_stage2_224 = np.expand_dims(segmented_stage2_224, axis=-1)
         
         
         # ============= STEP 4: Stage-1 Classification =============
@@ -105,7 +125,7 @@ async def predict_pneumonia(
                    f"(confidence: {stage1_result['confidence']:.2%})")
         
         
-        # ============= STEP 5: Stage-2 Classification (conditional) =============
+       # ============= STEP 5: Stage-2 Classification (conditional) =============
         final_prediction = {
             "label": stage1_result["predicted_class"],
             "confidence": stage1_result["confidence"],
@@ -122,7 +142,7 @@ async def predict_pneumonia(
                 # Stage-2: Viral vs Bacterial
                 # Input 1: Original X-ray (224x224) - full context
                 # Input 2: Segmented lung region (224x224) - focused lungs
-                stage2_result = stage2_classifier.predict(preprocessed_cls, segmented_lung_224)
+                stage2_result = stage2_classifier.predict(preprocessed_cls, segmented_stage2_224)
                 
                 logger.info(f"Stage-2 result: {stage2_result['predicted_class']} "
                            f"(confidence: {stage2_result['confidence']:.2%})")
@@ -165,7 +185,6 @@ async def predict_pneumonia(
             logger.warning(f"Failed to save scan history: {str(e)}")
         
         
-        # ============= STEP 8: Format and Return Response =============
         response = prediction_response(
             prediction_label=final_prediction["label"],
             confidence=final_prediction["confidence"],
